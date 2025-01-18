@@ -16,7 +16,7 @@ from imusim.simulation.calibrators import ScaleAndOffsetCalibrator
 
 TRAIN_INPUT_LOC = 'dataset/train_motion_data'
 TEST_INPUT_LOC = 'dataset/test_motion_data'
-OUTPUT_LOC = 'dataset/acceleration_data'
+OUTPUT_LOC = 'dataset/imu_data'
 TEMP_DATA = './dataset/temp/temp.bvh'
 
 FRAME_RATE = 30
@@ -27,7 +27,7 @@ label_map = {
     'sit_to_stand': 2
 }
 
-version = "ideal"
+version = "sim"
 calibSamples = 1000
 calibRotVel = 20
 
@@ -60,7 +60,7 @@ def imu_train_wrist_data(pose_file):
         dict_imu = {}
         imu = IdealIMU()
         imu.simulation = sim
-        imu.trajectory = splinedModel.getJoint("Right_wrist")
+        imu.trajectory = splinedModel.getJoint("Left_wrist")
 
         BasicIMUBehaviour(imu, samplingPeriod)
 
@@ -109,34 +109,46 @@ def imu_train_wrist_data(pose_file):
 
     return imu_data
 
-def imu_test_wrist_data(file_loc):
+def imu_test_wrist_data(folder_loc):
     """
-    Reads a CSV file with columns: time, seconds_elapsed, z, y, x
-    1) Calculates and returns the sample rate of the data.
-    2) Returns a numpy array of shape (n_samples, 3) with columns [x, y, z].
+    Reads 'Accelerometer.csv' and 'Gyroscope.csv' from the given folder.
+    
+    Both CSVs are assumed to have columns in this order:
+        time, seconds_elapsed, z, y, x
+        
+    Returns:
+        sample_rate (float): The sampling rate (Hz) for both accelerometer and gyroscope.
+        data_array (np.ndarray): Numpy array of shape (num_samples, 6) with columns:
+                                 (accX, accY, accZ, gyroX, gyroY, gyroZ).
     """
-    # Read the CSV into a DataFrame. 
-    # If your file does not have a header row in the CSV, set header=None.
-    # Adjust 'names' if your file has an actual header row or different column names.
-    df = pd.read_csv(file_loc)
+    # Paths to CSV files
+    acc_file = os.path.join(folder_loc, "Accelerometer.csv")
+    gyro_file = os.path.join(folder_loc, "Gyroscope.csv")
     
-    # Compute the total duration based on the 'seconds_elapsed' column
-    total_time = df['seconds_elapsed'].iloc[-1] - df['seconds_elapsed'].iloc[0]
+    # Read CSVs with pandas
+    acc_data = pd.read_csv(acc_file)
+    gyro_data = pd.read_csv(gyro_file)
     
-    # Number of samples
-    num_samples = len(df)
+    # Extract time (we'll use 'seconds_elapsed' which is column index 1)
+    acc_time = acc_data.iloc[:, 1].values  # 'seconds_elapsed' column for accelerometer
     
-    # Approximate sample rate
-    # Often defined as (number_of_intervals / total_time) 
-    # where number_of_intervals = num_samples - 1
-    # but you could also do num_samples / total_time for a rough estimate.
-    if total_time > 0:
-        sample_rate = (num_samples - 1) / total_time
-    else:
-        sample_rate = 0.0
+    # Compute sampling rate: 1 / (average delta of consecutive time entries)
+    dt = np.diff(acc_time)
+    sample_rate = 1.0 / np.mean(dt) if len(dt) > 0 else 0.0
     
-    # Create a numpy array [x, y, z]
-    data_array = df[['x', 'y', 'z']].to_numpy()
+    # Accelerometer columns: (time=0, seconds_elapsed=1, z=2, y=3, x=4)
+    acc_x = acc_data.iloc[:, 4].values
+    acc_y = acc_data.iloc[:, 3].values
+    acc_z = acc_data.iloc[:, 2].values
+    
+    # Gyroscope columns follow the same indexing
+    gyro_x = gyro_data.iloc[:, 4].values
+    gyro_y = gyro_data.iloc[:, 3].values
+    gyro_z = gyro_data.iloc[:, 2].values
+    
+    # Stack into a single array of shape (N, 6)
+    data_array = np.column_stack((acc_x, acc_y, acc_z,
+                                  gyro_x, gyro_y, gyro_z))
     
     return sample_rate, data_array
    
@@ -190,7 +202,7 @@ def extract_imu_data(rel_input_loc, resample_rate=None, dataset='train'):
                 imu_seq = imu_train_wrist_data(file_loc)
                 sample_rate = FRAME_RATE
             else:
-                sample_rate, imu_data = imu_test_wrist_data(file_loc)
+                sample_rate, imu_seq = imu_test_wrist_data(file_loc)
             
             sample_rates.append(sample_rate)
             imu_data.append(imu_seq)
@@ -213,4 +225,4 @@ def extract_imu_data(rel_input_loc, resample_rate=None, dataset='train'):
     print('Data extraction complete!')
 
 extract_imu_data(TRAIN_INPUT_LOC, dataset='train')
-
+extract_imu_data(TEST_INPUT_LOC, resample_rate=FRAME_RATE, dataset='test')

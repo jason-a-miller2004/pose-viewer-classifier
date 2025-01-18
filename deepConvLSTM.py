@@ -8,7 +8,7 @@ class DeepConvLSTM(nn.Module):
         super(DeepConvLSTM, self).__init__()
         
         # 1) Convolutional layers
-        self.conv1 = nn.Conv1d(3,   64, kernel_size=5, stride=1, padding=0)
+        self.conv1 = nn.Conv1d(6,   64, kernel_size=5, stride=1, padding=0)
         self.conv2 = nn.Conv1d(64, 64, kernel_size=5, stride=1, padding=0)
         self.conv3 = nn.Conv1d(64, 64, kernel_size=5, stride=1, padding=0)
         self.conv4 = nn.Conv1d(64, 64, kernel_size=5, stride=1, padding=0)

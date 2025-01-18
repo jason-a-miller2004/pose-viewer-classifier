@@ -136,7 +136,11 @@ def smpl2bvh(model_path:str, poses:str, output:str, mirror:bool,
         "order": order,
         "frametime": 1 / fps,
     }
-    
+     # apply 180 rotation on the z axis to the root
+    # bvh_data["rotations"][:, 0, 0] = (rotations[:, 0, 0] + 180) % 360
+    # bvh_data["positions"][:, 0, 0] *= -1
+    # bvh_data["positions"][:, 0, 2] *= -1
+
     if not output.endswith(".bvh"):
         output = output + ".bvh"
     
